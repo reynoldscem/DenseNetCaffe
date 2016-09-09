@@ -30,10 +30,10 @@ def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
     return conv
 
 
-def add_layer(bottom, num_filter, dropout):
+def add_layer(bottom, num_filter, dropout, dilation=1):
     conv = bn_relu_conv(
         bottom, kernel_size=3, nout=num_filter,
-        stride=1, pad=1, dropout=dropout
+        stride=1, pad=1, dropout=dropout, dilation=dilation
     )
     concate = L.Concat(bottom, conv, axis=1)
     return concate
@@ -83,9 +83,10 @@ def densenet(
     N = (depth - aux_layers) / dense_blocks
     assert float(N).is_integer(), \
         'Depth != (depth - auxiliary layers)  / num_blocks'
+    dilation = dict(zip(range(N), [1, 1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16]))
     for block in range(dense_blocks):
         for i in range(N):
-            model = add_layer(model, growth_rate, dropout)
+            model = add_layer(model, growth_rate, dropout, dilation[i])
             nchannels += growth_rate
         if block < dense_blocks - 1:
             model = transition(model, nchannels, dropout)
