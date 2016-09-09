@@ -6,7 +6,7 @@ import os.path
 caffe_root = '/home/reynoldscem/caffe'
 
 
-def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout):
+def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
     batch_norm = L.BatchNorm(
         bottom, in_place=False,
         param=[
@@ -22,7 +22,7 @@ def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout):
     relu = L.ReLU(scale, in_place=True)
     conv = L.Convolution(
         relu, kernel_size=kernel_size, stride=stride,
-        num_output=nout, pad=pad, bias_term=True,
+        num_output=nout, pad=pad, bias_term=True, dilation=dilation,
         weight_filler=dict(type='msra'), bias_filler=dict(type='constant')
     )
     if dropout > 0:
