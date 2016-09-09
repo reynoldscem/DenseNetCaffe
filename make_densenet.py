@@ -26,7 +26,7 @@ def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
         weight_filler=dict(type='msra'), bias_filler=dict(type='constant')
     )
     if dropout > 0:
-        conv = L.Dropout(conv, dropout_ratio=dropout)
+       conv = L.Dropout(conv, dropout_ratio=dropout)
     return conv
 
 
