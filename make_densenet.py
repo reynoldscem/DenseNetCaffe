@@ -16,13 +16,13 @@ def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
         ]
     )
     scale = L.Scale(
-        batch_norm, bias_term=False, in_place=True,
+        batch_norm, bias_term=True, in_place=True,
         filler=dict(value=1), bias_filler=dict(value=0)
     )
     relu = L.ReLU(scale, in_place=True)
     conv = L.Convolution(
         relu, kernel_size=kernel_size, stride=stride,
-        num_output=nout, pad=pad, bias_term=True, dilation=dilation,
+        num_output=nout, pad=pad, bias_term=False, dilation=dilation,
         weight_filler=dict(type='msra'), bias_filler=dict(type='constant')
     )
     if dropout > 0:
@@ -70,7 +70,7 @@ def densenet(
     nchannels = first_output
     model = L.Convolution(
         data, kernel_size=3, stride=1, num_output=nchannels,
-        pad=1, bias_term=True, weight_filler=dict(type='msra'),
+        pad=1, bias_term=False, weight_filler=dict(type='msra'),
         bias_filler=dict(type='constant')
     )
     if dropout > 0:
@@ -100,7 +100,7 @@ def densenet(
         ]
     )
     model = L.Scale(
-        model, bias_term=False, in_place=True,
+        model, bias_term=True, in_place=True,
         filler=dict(value=1), bias_filler=dict(value=0)
     )
     model = L.ReLU(model, in_place=True)
