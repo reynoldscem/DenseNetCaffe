@@ -30,10 +30,10 @@ def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
     return conv
 
 
-def add_layer(bottom, num_filter, dropout, dilation=1):
+def add_layer(bottom, num_filter, dropout, pad=1, dilation=1):
     conv = bn_relu_conv(
         bottom, kernel_size=3, nout=num_filter,
-        stride=1, pad=1, dropout=dropout, dilation=dilation
+        stride=1, pad=pad, dropout=dropout, dilation=dilation
     )
     concate = L.Concat(bottom, conv, axis=1)
     return concate
@@ -84,9 +84,11 @@ def densenet(
     assert float(N).is_integer(), \
         'Depth != (depth - auxiliary layers)  / num_blocks'
     dilation = dict(zip(range(N), [1, 1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16]))
+    dilation = dict(zip(range(N), [1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16, 16]))
+    #dilation = dict(zip(range(N), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]))
     for block in range(dense_blocks):
         for i in range(N):
-            model = add_layer(model, growth_rate, dropout, dilation[i])
+            model = add_layer(model, growth_rate, dropout, pad=dilation[i], dilation=dilation[i])
             nchannels += growth_rate
         if block < dense_blocks - 1:
             model = transition(model, nchannels, dropout)
@@ -138,7 +140,7 @@ def make_solver():
 
     s.max_iter = 100000
     s.type = 'Nesterov'
-    s.display = 1
+    s.display = 10
 
     s.base_lr = 0.1
     s.momentum = 0.9
@@ -149,6 +151,9 @@ def make_solver():
     s.stepvalue.append(int(0.5 * s.max_iter))
     s.stepvalue.append(int(0.75 * s.max_iter))
     s.solver_mode = caffe_pb2.SolverParameter.GPU
+
+    s.snapshot = 10000
+    s.snapshot_prefix = 'snapshots/DenseNet'
 
     solver_path = 'solver.prototxt'
     with open(solver_path, 'w') as f:
