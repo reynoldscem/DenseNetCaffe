@@ -126,7 +126,7 @@ def make_net():
         print(str(densenet(train_path, batch_size=16)), file=f)
 
     with open('test_densenet.prototxt', 'w') as f:
-        print(str(densenet(test_path, batch_size=8)), file=f)
+        print(str(densenet(test_path, batch_size=64)), file=f)
 
 
 def make_solver():
