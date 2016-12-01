@@ -27,11 +27,34 @@ def build_parser():
         default=None
     )
 
+    parser.add_argument(
+        '-n', '--network',
+        dest='network_name',
+        default=''
+    )
+
+    parser.add_argument(
+        '-o', '--output',
+        dest='output',
+        default=None
+    )
+
+    parser.add_argument(
+        '--no-show',
+        dest='show',
+        action='store_false',
+        default=True
+    )
+
     return parser
 
 
 def main(args):
     assert os.path.isfile(args.log), 'File must exist'
+
+    if args.output is not None:
+        assert os.path.exists(args.output), 'Output dir must exist.'
+        out_dir = os.path.abspath(args.output)
 
     with open(args.log) as fd:
         log_data = fd.read()
@@ -40,36 +63,70 @@ def main(args):
         iters = re.findall('Iteration (\d+), loss', log_data)
         iters = map(int, iters)
 
-        losses = re.findall('loss = (\d+.?\d*)', log_data)
+        losses = re.findall('Iteration \d+, loss = (\d+.?\d*)', log_data)
         iters = map(float, iters)
 
+        plt.figure()
         plt.plot(iters, losses)
+        plt.title('Train loss for {}'.format(args.network_name))
         plt.xlabel('Iteration')
         plt.ylabel('Loss')
-        plt.show()
+        if args.output:
+            plt.savefig(os.path.join(out_dir, 'train_loss.png'))
+
+        if args.show:
+            plt.show()
 
         accuracies = re.findall(
-            'Train net output #0: Accuracy1 = (\d+.?\d*)',
+            'Train net output #0: (?:A|a)ccuracy1? = (\d+.?\d*)',
             log_data
         )
 
-        plt.plot(iters, accuracies)
+        # If optimisation finished there is an extra match for iterations.
+        plt.figure()
+        plt.plot(iters[:len(accuracies)], accuracies)
+        plt.title('Train accuracy for {}'.format(args.network_name))
         plt.xlabel('Iteration')
         plt.ylabel('Accuracy')
-        plt.show()
+        if args.output:
+            plt.savefig(os.path.join(out_dir, 'train_acc.png'))
+
+        if args.show:
+            plt.show()
 
     if 'test' in args.partition:
         test_iters = re.findall('Iteration (\d+), Testing', log_data)
         test_iters = map(int, test_iters)
 
         test_acc = re.findall(
-            'Test net output #0: Accuracy1 = (\d+.?\d*)',
+            'Test net output #\d: (?:A|a)ccuracy1? = (\d+.?\d*)',
             log_data
         )
+        test_loss = re.findall(
+            'Test net output #\d: loss = (\d+.?\d*)',
+            log_data
+        )
+        plt.figure()
         plt.plot(test_iters, test_acc)
+        plt.title('Test accuracy for {}'.format(args.network_name))
         plt.xlabel('Iteration')
         plt.ylabel('Accuracy')
-        plt.show()
+        if args.output:
+            plt.savefig(os.path.join(out_dir, 'test_acc.png'))
+
+        if args.show:
+            plt.show()
+
+        plt.figure()
+        plt.plot(test_iters, test_loss)
+        plt.title('Test loss for {}'.format(args.network_name))
+        plt.xlabel('Iteration')
+        plt.ylabel('Loss')
+        if args.output:
+            plt.savefig(os.path.join(out_dir, 'test_loss.png'))
+
+        if args.show:
+            plt.show()
 
 
 if __name__ == '__main__':

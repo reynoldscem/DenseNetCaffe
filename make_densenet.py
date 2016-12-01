@@ -7,19 +7,20 @@ caffe_root = '/home/reynoldscem/caffe'
 
 
 def bn_relu_conv(bottom, kernel_size, nout, stride, pad, dropout, dilation=1):
-    batch_norm = L.BatchNorm(
-        bottom, in_place=False,
-        param=[
-            dict(lr_mult=0, decay_mult=0),
-            dict(lr_mult=0, decay_mult=0),
-            dict(lr_mult=0, decay_mult=0)
-        ]
-    )
-    scale = L.Scale(
-        batch_norm, bias_term=True, in_place=True,
-        filler=dict(value=1), bias_filler=dict(value=0)
-    )
-    relu = L.ReLU(scale, in_place=True)
+    # batch_norm = L.BatchNorm(
+    #     bottom, in_place=False,
+    #     param=[
+    #         dict(lr_mult=0, decay_mult=0),
+    #         dict(lr_mult=0, decay_mult=0),
+    #         dict(lr_mult=0, decay_mult=0)
+    #     ]
+    # )
+    # scale = L.Scale(
+    #     batch_norm, bias_term=True, in_place=True,
+    #     filler=dict(value=1), bias_filler=dict(value=0)
+    # )
+    # relu = L.ReLU(scale, in_place=True)
+    relu = L.ReLU(bottom, in_place=True)
     conv = L.Convolution(
         relu, kernel_size=kernel_size, stride=stride,
         num_output=nout, pad=pad, bias_term=False, dilation=dilation,
@@ -44,8 +45,8 @@ def transition(bottom, num_filter, dropout):
         bottom, kernel_size=1, nout=num_filter,
         stride=1, pad=0, dropout=dropout
     )
-    pooling = L.Pooling(conv, pool=P.Pooling.AVE, kernel_size=2, stride=2)
-    return pooling
+    # pooling = L.Pooling(conv, pool=P.Pooling.AVE, kernel_size=2, stride=2)
+    return conv
 
 
 # change the line below to experiment with different setting
@@ -55,17 +56,27 @@ def transition(bottom, num_filter, dropout):
 # growth_rate -- growth rate
 # dropout -- set to 0 to disable dropout, non-zero number to set dropout rate
 def densenet(
-    data_file, mode='train', batch_size=64, depth=40,
-    first_output=16, growth_rate=12, dropout=0.2, dense_blocks=3
+    data_file, mode='train', batch_size=64, depth=10,
+    first_output=16, growth_rate=10, dropout=0.2,
+    dense_blocks=2, split='trainval', tops=['color', 'label']
 ):
-    mean_file = os.path.join(caffe_root, 'examples/cifar10/mean.binaryproto')
-    data, label = L.Data(
-        source=data_file, backend=P.Data.LMDB,
-        batch_size=batch_size, ntop=2,
-        transform_param=dict(
-            mean_file=mean_file
-        )
-    )
+    # mean_file = os.path.join(caffe_root, 'examples/cifar10/mean.binaryproto')
+    # data, label = L.Data(
+    #     source=data_file, backend=P.Data.LMDB,
+    #     batch_size=batch_size, ntop=2,
+    #     transform_param=dict(
+    #         mean_file=mean_file
+    #     )
+    # )
+
+    data, label = L.Python(
+        module='nyud_layers',
+        layer='NYUDSegDataLayer', ntop=2,
+        param_str=str(dict(
+            nyud_dir='/media/reynoldscem/DATA/temp-datasets/nyud_gupta_new',
+            split=split,
+            tops=tops, seed=1337
+        )))
 
     nchannels = first_output
     model = L.Convolution(
@@ -84,49 +95,59 @@ def densenet(
     assert float(N).is_integer(), \
         'Depth != (depth - auxiliary layers)  / num_blocks'
     dilation = dict(zip(range(N), [1, 1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16]))
-    dilation = dict(zip(range(N), [1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16, 16]))
-    #dilation = dict(zip(range(N), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]))
+    # dilation = dict(zip(range(N), [1, 1, 2, 2, 2, 4, 4, 8, 8, 16, 16, 16]))
+    dilation = dict(zip(range(N), [1, 2, 4, 8]))
+    # dilation = dict(zip(range(N), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]))
     for block in range(dense_blocks):
         for i in range(N):
-            model = add_layer(model, growth_rate, dropout, pad=dilation[i], dilation=dilation[i])
+            model = add_layer(
+                model, growth_rate, dropout,
+                pad=dilation[i], dilation=dilation[i]
+            )
             nchannels += growth_rate
         if block < dense_blocks - 1:
             model = transition(model, nchannels, dropout)
 
-    model = L.BatchNorm(
-        model, in_place=False,
-        param=[
-            dict(lr_mult=0, decay_mult=0),
-            dict(lr_mult=0, decay_mult=0),
-            dict(lr_mult=0, decay_mult=0)
-        ]
-    )
-    model = L.Scale(
-        model, bias_term=True, in_place=True,
-        filler=dict(value=1), bias_filler=dict(value=0)
-    )
+    # model = L.BatchNorm(
+    #     model, in_place=False,
+    #     param=[
+    #         dict(lr_mult=0, decay_mult=0),
+    #         dict(lr_mult=0, decay_mult=0),
+    #         dict(lr_mult=0, decay_mult=0)
+    #     ]
+    # )
+    # model = L.Scale(
+    #     model, bias_term=True, in_place=True,
+    #     filler=dict(value=1), bias_filler=dict(value=0)
+    # )
+    # model = L.ReLU(model, in_place=True)
     model = L.ReLU(model, in_place=True)
-    model = L.Pooling(model, pool=P.Pooling.AVE, global_pooling=True)
-    model = L.InnerProduct(
-        model, num_output=10, bias_term=True,
-        weight_filler=dict(type='xavier'), bias_filler=dict(type='constant')
-    )
+
+    model = transition(model, 40, 0.)
+    # model = L.Pooling(model, pool=P.Pooling.AVE, global_pooling=True)
+    # model = L.InnerProduct(
+    #     model, num_output=10, bias_term=True,
+    #     weight_filler=dict(type='xavier'), bias_filler=dict(type='constant')
+    # )
     loss = L.SoftmaxWithLoss(model, label)
     accuracy = L.Accuracy(model, label)
     return to_proto(loss, accuracy)
 
 
 def make_net():
-    lmbd_path = 'examples/cifar10/cifar10_{}_lmdb'
-    train_path = os.path.join(caffe_root, lmbd_path.format('train'))
-    test_path = os.path.join(caffe_root, lmbd_path.format('test'))
+    # lmbd_path = 'examples/cifar10/cifar10_{}_lmdb'
+    # train_path = os.path.join(caffe_root, lmbd_path.format('train'))
+    # test_path = os.path.join(caffe_root, lmbd_path.format('test'))
     # change the path to your data. If it's not lmdb format,
     # also change first line of densenet() function.
     with open('train_densenet.prototxt', 'w') as f:
-        print(str(densenet(train_path, batch_size=16)), file=f)
+        print(
+            str(densenet(None, batch_size=1, split='trainval')),
+            file=f
+        )
 
     with open('test_densenet.prototxt', 'w') as f:
-        print(str(densenet(test_path, batch_size=64)), file=f)
+        print(str(densenet(None, batch_size=1, split='test')), file=f)
 
 
 def make_solver():
@@ -153,7 +174,7 @@ def make_solver():
     s.solver_mode = caffe_pb2.SolverParameter.GPU
 
     s.snapshot = 10000
-    s.snapshot_prefix = 'snapshots/DenseNet'
+    s.snapshot_prefix = 'snapshots/DenseNet_nyud'
 
     solver_path = 'solver.prototxt'
     with open(solver_path, 'w') as f:
